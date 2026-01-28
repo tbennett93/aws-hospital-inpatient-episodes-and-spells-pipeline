@@ -1,3 +1,5 @@
+WIP
+
 Purpose
 	Build a pipeline using source system inpatient episode/spell data to produce a spells and episodes fsct table with calculated measures appropriate dimensions
 
@@ -9,7 +11,7 @@ Use:
 		-bronze
 			-raw data
 			-append only
-			-CSV
+			-simple conversion from csv to parquet
 			-daily snapshot of current system table, which presents 1 row per episode 
 		-silver 
 			-de-duplicated 
@@ -19,6 +21,9 @@ Use:
 				-standardise column name format	
 				-trim empty characters
 			-schema validation
+				-date conversion - fail hard on unexpected values
+			-table rebuilt daily with new snapshot files
+				-the size of the table doesn't justify incremental loads
 			
 		-gold - produce fact/dimension tables for episodes/spells. 
 			-episodes

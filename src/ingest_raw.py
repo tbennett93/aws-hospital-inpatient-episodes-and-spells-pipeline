@@ -14,11 +14,12 @@ for file in DATA_DIR.glob("*.csv"):
     df["ingest_dttm"] = ingest_dttm
 
     #establish output paths
-    filename = file.stem
-    file_date = "-".join(reversed(filename.split(' ')[1].replace('.csv','').split('-')))
+    file_date = file.stem
+    file_date = "-".join(reversed(file_date.split(' ')[1].replace('.csv','').split('-')))
     target_s3_folder = f"s3://hospital-inpatients-pipeline/bronze/episodes/snapshot_date={file_date}/episodes.parquet"
 
     #upload files
     df.to_parquet(    
         target_s3_folder,
         index=False)
+    
