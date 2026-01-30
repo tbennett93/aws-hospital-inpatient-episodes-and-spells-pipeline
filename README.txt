@@ -1,7 +1,7 @@
 WIP
 
 Purpose
-	Build a pipeline using source system inpatient episode/spell data to produce a spells and episodes fsct table with calculated measures and appropriately modelled dimensions
+	Using AWS services, build a pipeline using source system inpatient episode/spell data to produce a spells and episodes fsct table with calculated measures and appropriately modelled dimensions
 
 Use:
 	-s3 for storage
@@ -39,7 +39,7 @@ Use:
 			-spells 
 				-one row per spell
 				-derive spell LOS from first episode start date to last episode discharge
-			-slowly changing dimensions (SCD2)
+			-dimensions (SCD1 - keep most recent)
 				-ward
 				-patient
 					-derive age at episode start
@@ -51,6 +51,16 @@ Use:
 -Once discharged, records become immutable
 
 
+
+talk about
+	-why used athena
+	-why used a view
+	-why drop and rebuild
+	-why not SCD2
+	-why not a dimension for consultant
+		-source doesn't have any other consultant info, it would be a single column consultant 
+	-creating a relational schema in gold
+		-normalising the fields somewhat - separating out to dimensions from a flat table
 
 dependencies:
 	-pandas

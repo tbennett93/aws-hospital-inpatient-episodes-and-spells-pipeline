@@ -1,4 +1,4 @@
-CREATE external TABLE `bronze_episodes`(
+CREATE external TABLE hospital_data.bronze_episodes(
   `spell id` string, 
   `episode_id` string, 
   `patient_id` string, 

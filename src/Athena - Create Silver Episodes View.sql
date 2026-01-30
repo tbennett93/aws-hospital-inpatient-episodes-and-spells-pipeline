@@ -1,6 +1,6 @@
 --Used in a CTAS operation produced by lambda function 
 
-create  view vw_silver_episodes as 
+create  view hospital_data.vw_silver_episodes as 
 
 with _data as (
 select 
