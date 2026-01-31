@@ -1,66 +1,171 @@
-WIP
+# Inpatient Episodes & Spells Data Pipeline (WIP)
 
-Purpose
-	Using AWS services, build a pipeline using source system inpatient episode/spell data to produce a spells and episodes fsct table with calculated measures and appropriately modelled dimensions
+## Purpose
 
-Use:
-	-s3 for storage
-	-boto3 for ingestion
-	-athena for queries and defining table structures
-	-medallion architecture
-		-bronze
-			-raw data
-			-append only
-			-simple conversion from csv to parquet
-			-daily snapshot of current system table, which presents 1 row per episode 
-			-source system to push daily
-		-silver 
-			-de-duplicated 
-				-one row per episode representing latest episode data 
-				-don't retain in-episode historical changes at this level - this will be done at gold level via SCD2
-			-cleaned
-				-standardise column name format	
-				-trim empty characters
-			-schema validation
-				-date conversion - fail hard on unexpected values
-			-table rebuilt daily with new snapshot files
-				-the size of the table doesn't justify incremental loads			
-			-trigger
-				-event bridge on a set schedule 8am
-		
-	
-	HERE->			
-		-gold - produce fact/dimension tables for episodes/spells. 
-			-episodes
-				-add latest_episode in_spell flag x
-				-add discharged flag x
-				-add episode number x
-				-represents latest version of an episode x
-			-spells 
-				-one row per spell
-				-derive spell LOS from first episode start date to last episode discharge
-			-dimensions (SCD1 - keep most recent)
-				-ward
-				-patient
-					-derive age at episode start
-					-derive age at discharge
-				-consultant
+Build an AWS-based data pipeline to transform **source-system inpatient episode data** into analytically useful **episode and spell fact tables**, with calculated measures and appropriately modelled dimensions.
 
--Patients are admitted
--Their episode can change while active
--Once discharged, records become immutable
+The pipeline is designed to:
+- Handle mutable episode records
+- Preserve clinical semantics (episodes vs spells)
+- Produce a clean relational model for downstream analytics
 
+---
 
+## High-Level Architecture
 
-talk about
-	-why used athena
-	-why used a view
-	-why drop and rebuild
-	-why not SCD2
-	-why not a dimension for consultant
-		-source doesn't have any other consultant info, it would be a single column consultant 
-	-creating a relational schema in gold
-		-normalising the fields somewhat - separating out to dimensions from a flat table
+- **Storage:** Amazon S3  
+- **Processing / Querying:** Amazon Athena  
+- **Orchestration:** AWS Step Functions  
+- **Compute:** AWS Lambda (boto3)  
+- **Architecture Pattern:** Medallion (Bronze → Silver → Gold)
 
-dependencies:
-	-pandas
+---
+
+## Technology Choices
+
+### Why Athena
+- Serverless with minimal operational overhead
+- Native integration with S3
+- Strong support for CTAS and analytical SQL
+- Well-suited for moderate-sized healthcare datasets
+
+### Why Views
+- Encapsulate complex transformation logic
+- Reusable across CTAS operations
+- Separate business logic from physical table creation
+
+### Why Drop-and-Rebuild
+- Source system provides **snapshots**, not change logs
+- Table sizes do not justify incremental complexity
+- Deterministic rebuilds simplify correctness guarantees
+
+---
+
+## Data Model Overview
+
+### Clinical Concepts
+- Patients are admitted
+- Admissions consist of one or more **episodes**
+- Episodes may change while active
+- Once discharged, episode records are immutable
+- A **spell** represents a continuous inpatient stay across episodes
+
+---
+
+## Medallion Layers
+
+### Bronze
+
+Raw ingestion layer.
+
+- Append-only
+- Source-system snapshot (1 row per episode)
+- CSV → Parquet conversion
+- Daily snapshot pushed by source system
+- No business logic applied
+
+**Purpose:** Preserve raw history and source fidelity.
+
+---
+
+### Silver
+
+Cleaned, validated, and de-duplicated layer.
+
+**Transformations:**
+- One row per episode (latest version only)
+- No in-episode historical tracking at this level
+- Standardised column naming
+- Trimmed whitespace
+- Schema validation
+  - Explicit date parsing
+  - Fail hard on unexpected values
+
+**Load Pattern:**
+- Full rebuild daily
+- Triggered via EventBridge (08:00)
+- Incremental loading not justified by data volume
+
+**Rationale:**  
+Silver represents the **current truth** for each episode.
+
+---
+
+### Gold
+
+Analytical fact and dimension tables.
+
+#### Fact Tables
+
+**Episodes**
+- One row per episode
+- Latest episode in spell flag
+- Discharged flag
+- Episode number within spell
+- Represents most recent episode state
+
+**Spells**
+- One row per spell
+- Derived from episode grouping
+- Length of stay calculated from:
+  - First episode start date
+  - Last episode discharge date
+
+---
+
+#### Dimensions (SCD Type 1)
+
+- **Ward**
+- **Patient**
+  - Age at episode start
+  - Age at discharge
+- **Consultant**
+
+**Why SCD1 (not SCD2):**
+- Silver already represents the most recent episode state
+- Historical episode changes are not retained at silver
+- SCD2 would add complexity without analytical benefit
+
+**Why Consultant is a Dimension (but minimal):**
+- Source system only provides a consultant identifier
+- No additional attributes available
+- Retained for relational consistency
+
+---
+
+## Orchestration
+
+- Step Functions coordinate:
+  - S3 cleanup
+  - Athena CTAS execution
+  - Dependency ordering
+- Lambda functions are modularised for reuse
+- Athena execution status is surfaced to Step Functions
+
+---
+
+## Current Limitations / TODO
+
+- Add async waits for Athena where required
+- Alert on empty source tables
+- Allow pipeline continuation when no data found (graceful S3 cleanup)
+- Improve Athena failure reporting in Step Functions
+
+---
+
+## Design Notes
+
+- Gold layer is intentionally relational (facts + dimensions)
+- Normalisation improves:
+  - Reusability
+  - Analytical clarity
+  - Downstream BI modelling
+- SCD1 dimensions can be derived entirely from Silver
+- No cloud data warehouse required at current scale
+
+---
+
+## Dependencies
+
+- `pandas`
+- `boto3`
